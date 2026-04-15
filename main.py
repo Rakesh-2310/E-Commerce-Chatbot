@@ -1,10 +1,10 @@
 import streamlit as st
 from retrive_faq import ingest_faq_data, faq_chain
 from sql import sql_chain
-from pathlib import Path
+from config import *
 from route import route_query
 
-faqs_path = Path(__file__).parent / "resources/faq_data.csv"
+faqs_path = path_csv
 ingest_faq_data(faqs_path)
 
 
