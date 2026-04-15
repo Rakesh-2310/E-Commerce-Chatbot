@@ -1,12 +1,17 @@
-from semantic_router import Route
-from semantic_router.routers import SemanticRouter
-from semantic_router.encoders import HuggingFaceEncoder
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+from config import *
 
-encoder = HuggingFaceEncoder()
 
-faq = Route(
-    name='faq',
-    utterances=[
+# Load embedding model (same as before internally used by semantic_router)
+model = SentenceTransformer(EMBEDDING_MODEL)
+
+# -----------------------------
+# Define Routes (same as yours)
+# -----------------------------
+routes = {
+    "faq": [
         "What is the return policy?",
         "How can I return a product?",
         "Can I return a product if I don't like it?",
@@ -42,12 +47,8 @@ faq = Route(
         "What happens if I cancel an order?",
         "Is there a cancellation fee?",
         "How do I contact customer support?"
-    ]
-)
-
-sql = Route(
-    name='sql',
-    utterances=[
+    ],
+    "sql": [
         "Show me Nike shoes with a 50 percent discount",
         "Find shoes under 3000 rupees",
         "List Puma running shoes",
@@ -79,54 +80,40 @@ sql = Route(
         "List all Puma shoes",
         "Show shoes available under budget 3000"
     ]
-)
+}
 
-# Create router first
-router = SemanticRouter(encoder=encoder)
+# -----------------------------
+# Precompute embeddings
+# -----------------------------
+route_embeddings = {
+    route: model.encode(utterances)
+    for route, utterances in routes.items()
+}
 
-# Then add routes - this initializes the index
-router.add([faq, sql])
+# -----------------------------
+# Routing Function
+# -----------------------------
+def route_query(query: str, threshold: float = 0.5):
+    query_emb = model.encode([query])
 
-test_data = [
-    # FAQ queries
-    ("What is your policy on defective product?", "faq"),
-    ("Can I return a defective item?", "faq"),
-    ("How do I return a product?", "faq"),
-    ("What is the refund policy?", "faq"),
-    ("How long does it take to get my refund?", "faq"),
-    ("Can I get a refund if the item is damaged?", "faq"),
-    ("How do I track my shipment?", "faq"),
-    ("Where can I track my order?", "faq"),
-    ("What payment methods do you support?", "faq"),
-    ("Do you accept credit cards?", "faq"),
-    ("Can I pay using UPI?", "faq"),
-    ("Is cash on delivery available?", "faq"),
-    ("How many days does refund processing take?", "faq"),
-    ("What should I do if my product arrives damaged?", "faq"),
-    ("How do I check my order status?", "faq"),
+    scores = {}
 
-    # SQL queries (product search)
-    ("Pink Puma shoes in price range 5000 to 1000", "sql"),
-    ("Show me Puma shoes between 1000 and 5000", "sql"),
-    ("Find Nike shoes with 50 percent discount", "sql"),
-    ("Show shoes under 3000 rupees", "sql"),
-    ("List Puma running shoes", "sql"),
-    ("What is the price of Nike running shoes?", "sql"),
-    ("Show top 3 shoes by rating", "sql"),
-    ("Find shoes with rating above 4.5", "sql"),
-    ("List shoes with more than 500 reviews", "sql"),
-    ("Find shoes cheaper than 2000 rupees", "sql"),
-    ("Show the most popular shoes", "sql"),
-    ("List Adidas running shoes", "sql"),
-    ("Show shoes with discount greater than 40 percent", "sql"),
-    ("Which shoes have the highest ratings?", "sql"),
-    ("Give me shoes under 2500 with good ratings", "sql"),
-]
+    for route, emb in route_embeddings.items():
+        similarity = cosine_similarity(query_emb, emb)
+        scores[route] = np.max(similarity)
 
-X, y = zip(*test_data)
-router.fit(X=X, y=y)
+    best_route = max(scores, key=scores.get)
+
+    # Optional: threshold check (avoid wrong routing)
+    if scores[best_route] < threshold:
+        return "fallback"
+
+    return best_route
 
 
+# -----------------------------
+# Test (same as your previous)
+# -----------------------------
 if __name__ == "__main__":
-    print(router("What is your policy on defective product?").name)
-    print(router("Pink Puma shoes in price range 5000 to 1000").name)
+    print(route_query("what about cancel the product "))  # faq
+    print(route_query("show shoes under 4000 with best review for sports related"))  # sql

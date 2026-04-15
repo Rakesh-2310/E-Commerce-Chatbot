@@ -2,14 +2,14 @@ import streamlit as st
 from retrive_faq import ingest_faq_data, faq_chain
 from sql import sql_chain
 from pathlib import Path
-from router import router
+from route import route_query
 
 faqs_path = Path(__file__).parent / "resources/faq_data.csv"
 ingest_faq_data(faqs_path)
 
 
 def ask(query):
-    route = router(query).name
+    route = route_query(query)
     if route == 'faq':
         return faq_chain(query)
     elif route == 'sql':
